@@ -17,6 +17,8 @@ router.get('/Greayquest', async (req, res) => {
     res.json(GreayquestLoanData);
 });
 
+// API to save greayquest excel file statement  
+
 router.post('/greayquest-statement', upload.single('excelFile'), async (req, res) => {
 
     try {
@@ -86,6 +88,107 @@ router.post('/greayquest-statement', upload.single('excelFile'), async (req, res
 });
 
 
+
+// function save data to main transation table with utr no
+async function saveCombinedDataWithToDatabase(data) {
+    try {
+        for (const item of data) {
+            if (item.matchingStatements.length > 0) {
+                console.log(item.utr, item.matchingStatements[0].tranId, 128);
+                const [LoanFeeOnlyTranstionsInstance, created] = await LoanFeeOnlyTranstions.findOrCreate({
+                    where: { Bank_tranId: item.matchingStatements[0].tranId },
+                    defaults: {
+                        date_of_Payment: item.disbursementDate,
+                        mode_of_payment: 'Loan',
+                        MITSDE_Bank_Name: `${item.bankName} ${item.accountNumber}`,
+                        instrument_No: item.utr,
+                        amount: item.matchingStatements[0].depositAmt,
+                        clearance_Date: item.matchingStatements[0].transactionDate,
+                        student_Name: item.studentName,
+                        student_Email_ID: item.studentId,
+                        course_Name: item.board,
+                        finance_charges: item.discountAmount,
+                        Bank_tranId: item.matchingStatements[0].tranId,
+                        transactionRemarks: item.matchingStatements[0].transactionRemarks,
+                        NbfcName: item.NbfcName || null
+                    },
+                });
+
+                if (created) {
+                    console.log('New CombinedData instance created:', LoanFeeOnlyTranstionsInstance.get());
+                } else {
+                    console.log('CombinedData instance already exists:', LoanFeeOnlyTranstionsInstance.get());
+                }
+            }
+        }
+
+        console.log('Data saved to the database.');
+    } catch (error) {
+        console.error('Error saving data to the database:', error);
+        throw error;
+    }
+}
+
+// api for Greaguest & icici bank data merge & then call this saveCombinedDataWithToDatabase to save data
+router.get('/greaquest-only-data', async (req, res) => {
+    try {
+        const result = await Greayquest.findAll({
+            attributes: [
+                'disbursementDate',
+                'bankName',
+                'accountNumber',
+                'studentId',
+                'studentName',
+                'board',
+                'discountAmount',
+                'utr',
+                'NbfcName'
+            ]
+        });
+
+        const statementResult = await IciciBankStatment.findAll({
+            attributes: [
+                'tranId',
+                'transactionDate',
+                'depositAmt',
+                'transactionRemarks',
+            ]
+        });
+
+        const utrValues = result.map(item => item.utr);
+
+        const filteredStatementResult = statementResult.filter(item => {
+            const splitRemarks = item.transactionRemarks.split('-');
+            const utrPart = splitRemarks[1];
+            return utrValues.includes(utrPart);
+        });
+
+        const filteredStatementResults = statementResult.filter(item => {
+            return transactionRemarksMatch && utrValues.includes(transactionRemarksMatch[1]);
+        });
+
+        const data = result.map(greayquestItem => {
+            const matchingStatements = filteredStatementResult.concat(filteredStatementResults)
+                .filter(statementItem => statementItem.transactionRemarks.includes(greayquestItem.utr));
+
+            return {
+                ...greayquestItem,
+                matchingStatements,
+            };
+        });
+        saveCombinedDataWithToDatabase(data)
+        res.json({ data });
+    } catch (error) {
+        console.error('Error fetching combined data:', error);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+
+
+
+
+
 // function extractValuesFromTransactionRemarks(transactionRemarks) {
 //     const regex = /NEFT-([A-Z0-9]+)-/; // Define your regular expression to capture the Instrument no
 //     const match = transactionRemarks.match(regex);
@@ -95,18 +198,17 @@ router.post('/greayquest-statement', upload.single('excelFile'), async (req, res
 //     return { instrumentNo };
 // }
 
-router.get('/perform-operations', async (req, res) => {
-    try {
-        const data = await Greayquest.findAll({
-            include: IciciBankStatment
-        });
+// router.get('/perform-operations', async (req, res) => {
+//     try {
+//         const data = await Greayquest.findAll({
+//             include: IciciBankStatment
+//         });
 
-        res.json({ data: data });
-    } catch (error) {
-        throw new Error(`Error extracting data from the database: ${error.message}`);
-    }
-});
-
+//         res.json({ data: data });
+//     } catch (error) {
+//         throw new Error(`Error extracting data from the database: ${error.message}`);
+//     }
+// });
 
 // const { literal } = require('sequelize');
 
@@ -155,69 +257,69 @@ router.get('/perform-operations', async (req, res) => {
 //     }
 // });
 
-async function saveCombinedDataToDatabase(data) {
-    try {
-        for (const item of data) {
-            console.log(item.utr, item.tranId, 128);
+// async function saveCombinedDataToDatabase(data) {
+//     try {
+//         for (const item of data) {
+//             console.log(item.utr, item.tranId, 128);
 
-            // Try to find an existing record based on Bank_tranId (tranId)
-            const existingRecord = await FeeFromLoanTracker.findOne({
-                where: { Bank_tranId: item.tranId }
-            });
+//             // Try to find an existing record based on Bank_tranId (tranId)
+//             const existingRecord = await FeeFromLoanTracker.findOne({
+//                 where: { Bank_tranId: item.tranId }
+//             });
 
-            if (existingRecord) {
-                // Update the existing record
-                await FeeFromLoanTracker.update({
-                    date_of_Payment: item.disbursementDate,
-                    mode_of_payment: 'Loan',
-                    MITSDE_Bank_Name: `${item.bankName} ${item.accountNumber}`,
-                    instrument_No: item.utr,
-                    amount: item.depositAmt,
-                    clearance_Date: item.transactionDate,
-                    student_Name: item.studentName,
-                    student_Email_ID: item.studentId,
-                    course_Name: item.board,
-                    finance_charges: item.discountAmount,
-                    transactionRemarks: item.transactionRemarks,
-                }, {
-                    where: { Bank_tranId: item.tranId }
-                });
+//             if (existingRecord) {
+//                 // Update the existing record
+//                 await FeeFromLoanTracker.update({
+//                     date_of_Payment: item.disbursementDate,
+//                     mode_of_payment: 'Loan',
+//                     MITSDE_Bank_Name: `${item.bankName} ${item.accountNumber}`,
+//                     instrument_No: item.utr,
+//                     amount: item.depositAmt,
+//                     clearance_Date: item.transactionDate,
+//                     student_Name: item.studentName,
+//                     student_Email_ID: item.studentId,
+//                     course_Name: item.board,
+//                     finance_charges: item.discountAmount,
+//                     transactionRemarks: item.transactionRemarks,
+//                 }, {
+//                     where: { Bank_tranId: item.tranId }
+//                 });
 
-                console.log('Existing CombinedData instance updated:', item.tranId);
-            } else {
-                // Create a new record if it doesn't exist
-                const [FeeFromLoanTrackerInstance, created] = await FeeFromLoanTracker.findOrCreate({
-                    where: { Bank_tranId: item.tranId },
-                    defaults: {
-                        date_of_Payment: item.disbursementDate,
-                        mode_of_payment: 'Loan',
-                        MITSDE_Bank_Name: `${item.bankName} ${item.accountNumber}`,
-                        instrument_No: item.utr,
-                        amount: item.depositAmt,
-                        clearance_Date: item.transactionDate,
-                        student_Name: item.studentName,
-                        student_Email_ID: item.studentId,
-                        course_Name: item.board,
-                        finance_charges: item.discountAmount,
-                        Bank_tranId: item.tranId,
-                        transactionRemarks: item.transactionRemarks,
-                    },
-                });
+//                 console.log('Existing CombinedData instance updated:', item.tranId);
+//             } else {
+//                 // Create a new record if it doesn't exist
+//                 const [FeeFromLoanTrackerInstance, created] = await FeeFromLoanTracker.findOrCreate({
+//                     where: { Bank_tranId: item.tranId },
+//                     defaults: {
+//                         date_of_Payment: item.disbursementDate,
+//                         mode_of_payment: 'Loan',
+//                         MITSDE_Bank_Name: `${item.bankName} ${item.accountNumber}`,
+//                         instrument_No: item.utr,
+//                         amount: item.depositAmt,
+//                         clearance_Date: item.transactionDate,
+//                         student_Name: item.studentName,
+//                         student_Email_ID: item.studentId,
+//                         course_Name: item.board,
+//                         finance_charges: item.discountAmount,
+//                         Bank_tranId: item.tranId,
+//                         transactionRemarks: item.transactionRemarks,
+//                     },
+//                 });
 
-                if (created) {
-                    console.log('New CombinedData instance created:', item.tranId);
-                } else {
-                    console.log('CombinedData instance already exists:', item.tranId);
-                }
-            }
-        }
+//                 if (created) {
+//                     console.log('New CombinedData instance created:', item.tranId);
+//                 } else {
+//                     console.log('CombinedData instance already exists:', item.tranId);
+//                 }
+//             }
+//         }
 
-        console.log('Data saved to the database.');
-    } catch (error) {
-        console.error('Error saving data to the database:', error);
-        throw error;
-    }
-}
+//         console.log('Data saved to the database.');
+//     } catch (error) {
+//         console.error('Error saving data to the database:', error);
+//         throw error;
+//     }
+// }
 
 
 // async function saveCombinedDataToDatabase(data) {
@@ -257,59 +359,59 @@ async function saveCombinedDataToDatabase(data) {
 
 
 
-router.get('/combined-data', async (req, res) => {
-    try {
-        // Fetch data from IciciBankStatment
-        const statementResult = await IciciBankStatment.findAll({
-            attributes: [
-                'tranId',
-                'transactionDate',
-                'depositAmt',
-                'transactionRemarks',
-            ]
-        });
+// router.get('/combined-data', async (req, res) => {
+//     try {
+//         // Fetch data from IciciBankStatment
+//         const statementResult = await IciciBankStatment.findAll({
+//             attributes: [
+//                 'tranId',
+//                 'transactionDate',
+//                 'depositAmt',
+//                 'transactionRemarks',
+//             ]
+//         });
 
-        // Fetch data from Greayquest
-        const greayquestResult = await Greayquest.findAll({
-            attributes: [
-                'disbursementDate',
-                'bankName',
-                'accountNumber',
-                'studentId',
-                'studentName',
-                'board',
-                'discountAmount',
-                'utr'
-            ]
-        });
+//         // Fetch data from Greayquest
+//         const greayquestResult = await Greayquest.findAll({
+//             attributes: [
+//                 'disbursementDate',
+//                 'bankName',
+//                 'accountNumber',
+//                 'studentId',
+//                 'studentName',
+//                 'board',
+//                 'discountAmount',
+//                 'utr'
+//             ]
+//         });
 
-        // Extract utr values from Greayquest result
-        const utrValues = greayquestResult.map(item => item.utr);
+//         // Extract utr values from Greayquest result
+//         const utrValues = greayquestResult.map(item => item.utr);
 
-        // Filter Greayquest data based on utr values
-        const filteredGreayquestResult = greayquestResult.filter(item => utrValues.includes(item.utr));
+//         // Filter Greayquest data based on utr values
+//         const filteredGreayquestResult = greayquestResult.filter(item => utrValues.includes(item.utr));
 
-        // Combine IciciBankStatment data with matching Greayquest records
-        const data = statementResult.map(statementItem => {
-            const matchingGreayquest = filteredGreayquestResult.find(greayquestItem => {
-                return statementItem.transactionRemarks.includes(greayquestItem.utr);
-            });
+//         // Combine IciciBankStatment data with matching Greayquest records
+//         const data = statementResult.map(statementItem => {
+//             const matchingGreayquest = filteredGreayquestResult.find(greayquestItem => {
+//                 return statementItem.transactionRemarks.includes(greayquestItem.utr);
+//             });
 
-            return {
-                ...statementItem.dataValues,
-                ...matchingGreayquest?.dataValues, // Merge Greayquest data
-            };
-        });
+//             return {
+//                 ...statementItem.dataValues,
+//                 ...matchingGreayquest?.dataValues, // Merge Greayquest data
+//             };
+//         });
 
-        // Save combined data to the database
-        saveCombinedDataToDatabase(data);
+//         // Save combined data to the database
+//         saveCombinedDataToDatabase(data);
 
-        res.json({ data });
-    } catch (error) {
-        console.error('Error fetching combined data:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
+//         res.json({ data });
+//     } catch (error) {
+//         console.error('Error fetching combined data:', error);
+//         res.status(500).json({ error: 'Internal Server Error' });
+//     }
+// });
 
 
 
@@ -397,100 +499,6 @@ router.get('/combined-data', async (req, res) => {
 
 
 
-
-async function saveCombinedDataWithToDatabase(data) {
-    try {
-        for (const item of data) {
-            if (item.matchingStatements.length > 0) {
-                console.log(item.utr, item.matchingStatements[0].tranId, 128);
-                const [LoanFeeOnlyTranstionsInstance, created] = await LoanFeeOnlyTranstions.findOrCreate({
-                    where: { Bank_tranId: item.matchingStatements[0].tranId },
-                    defaults: {
-                        date_of_Payment: item.disbursementDate,
-                        mode_of_payment: 'Loan',
-                        MITSDE_Bank_Name: `${item.bankName} ${item.accountNumber}`,
-                        instrument_No: item.utr,
-                        amount: item.matchingStatements[0].depositAmt,
-                        clearance_Date: item.matchingStatements[0].transactionDate,
-                        student_Name: item.studentName,
-                        student_Email_ID: item.studentId,
-                        course_Name: item.board,
-                        finance_charges: item.discountAmount,
-                        Bank_tranId: item.matchingStatements[0].tranId,
-                        transactionRemarks: item.matchingStatements[0].transactionRemarks,
-                        NbfcName: item.NbfcName || null
-                    },
-                });
-
-                if (created) {
-                    console.log('New CombinedData instance created:', LoanFeeOnlyTranstionsInstance.get());
-                } else {
-                    console.log('CombinedData instance already exists:', LoanFeeOnlyTranstionsInstance.get());
-                }
-            }
-        }
-
-        console.log('Data saved to the database.');
-    } catch (error) {
-        console.error('Error saving data to the database:', error);
-        throw error;
-    }
-}
-
-router.get('/greaquest-only-data', async (req, res) => {
-    try {
-        const result = await Greayquest.findAll({
-            attributes: [
-                'disbursementDate',
-                'bankName',
-                'accountNumber',
-                'studentId',
-                'studentName',
-                'board',
-                'discountAmount',
-                'utr',
-                'NbfcName'
-            ]
-        });
-
-        const statementResult = await IciciBankStatment.findAll({
-            attributes: [
-                'tranId',
-                'transactionDate',
-                'depositAmt',
-                'transactionRemarks',
-            ]
-        });
-
-        const utrValues = result.map(item => item.utr);
-
-        const filteredStatementResult = statementResult.filter(item => {
-            const splitRemarks = item.transactionRemarks.split('-');
-            const utrPart = splitRemarks[1];
-            return utrValues.includes(utrPart);
-        });
-
-        const filteredStatementResults = statementResult.filter(item => {
-            return transactionRemarksMatch && utrValues.includes(transactionRemarksMatch[1]);
-        });
-
-        const data = result.map(greayquestItem => {
-            const matchingStatements = filteredStatementResult.concat(filteredStatementResults)
-                .filter(statementItem => statementItem.transactionRemarks.includes(greayquestItem.utr));
-
-            return {
-                ...greayquestItem,
-                matchingStatements,
-            };
-        });
-        saveCombinedDataWithToDatabase(data)
-        res.json({ data });
-    } catch (error) {
-        console.error('Error fetching combined data:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
-
-
+//save data with combination with icici bank utr no 
 
 module.exports = router;

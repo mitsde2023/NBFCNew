@@ -48,7 +48,7 @@ function App() {
     setLoading(true); // Set loading to true when starting the process
 
     try {
-      await axios.get("http://localhost:9000/api/greaquest-only-data");
+      // await axios.get("http://localhost:9000/api/greaquest-only-data");
       await axios.get("http://localhost:9000/api/propelled-only-data");
       await axios.get("http://localhost:9000/api/Fibe-only-data");
       setReport(true);

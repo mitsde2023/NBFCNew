@@ -47,10 +47,9 @@ app.get('/api/FeeFromLoanTracker', async (req, res) => {
 });
 
 
-
 app.get('/api/transaction/mob/:studentMobileNo', async (req, res) => {
   const studentMobileNo = req.params.studentMobileNo;
-
+  
   try {
     const transaction = await LoanFeeOnlyTranstions.findOne({
       attributes: [
@@ -71,22 +70,27 @@ app.get('/api/transaction/mob/:studentMobileNo', async (req, res) => {
       ],
       where: { student_Mobile_No: studentMobileNo }
     });
+    
+    console.log(transaction);
 
     if (transaction) {
-      const formattedTransactions = transaction.map(transaction => ({
+      const formattedTransaction = {
         ...transaction.dataValues,
         date_of_Payment: moment(transaction.date_of_Payment, 'MM/DD/YYYY').format('YYYY-MM-DD'),
-        clearance_Date: moment(transaction.clearance_Date, 'DD/MMM/YYYY').format('YYYY-MM-DD'),
-      }));
+        clearance_Date: moment(transaction.clearance_Date, 'DD/MMM/YYYY').format('YYYY-MM-DD')
+      };
 
-      res.json(formattedTransactions);
+      console.log(formattedTransaction);
+      res.json(formattedTransaction);
     } else {
       res.status(404).json({ error: 'Transaction not found' });
     }
   } catch (error) {
+    console.error('Error fetching data:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
 
 
 app.get('/api/transaction/email/:student_Email_ID', async (req, res) => {
@@ -109,23 +113,27 @@ app.get('/api/transaction/email/:student_Email_ID', async (req, res) => {
         'Bank_tranId',
         'NbfcName',
         'tenure'
-
       ],
       where: { student_Email_ID: studentEmailId }
     });
 
+    console.log(transaction);
+
     if (transaction) {
-      const formattedTransactions = transaction.map(transaction => ({
+      const formattedTransaction = {
         ...transaction.dataValues,
         date_of_Payment: moment(transaction.date_of_Payment, 'MM/DD/YYYY').format('YYYY-MM-DD'),
-        clearance_Date: moment(transaction.clearance_Date, 'DD/MMM/YYYY').format('YYYY-MM-DD'),
-      }));
+        clearance_Date: moment(transaction.clearance_Date, 'DD/MMM/YYYY').format('YYYY-MM-DD')
+      };
 
-      res.json(formattedTransactions);
+      console.log(formattedTransaction);
+
+      res.json(formattedTransaction);
     } else {
       res.status(404).json({ error: `Student Transaction not found with ${studentEmailId}` });
     }
   } catch (error) {
+    console.error('Error fetching data:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
@@ -240,17 +248,18 @@ app.get('/api/em-transaction', async (req, res) => {
     });
 
     if (transaction) {
-      const formattedTransactions = transaction.map(transaction => ({
+      const formattedTransaction = {
         ...transaction.dataValues,
         date_of_Payment: moment(transaction.date_of_Payment, 'MM/DD/YYYY').format('YYYY-MM-DD'),
-        clearance_Date: moment(transaction.clearance_Date, 'DD/MMM/YYYY').format('YYYY-MM-DD'),
-      }));
+        clearance_Date: moment(transaction.clearance_Date, 'DD/MMM/YYYY').format('YYYY-MM-DD')
+      };
 
-      res.json(formattedTransactions);
+      res.json(formattedTransaction);
     } else {
       res.status(404).json({ error: 'Student Transaction not found' });
     }
   } catch (error) {
+    console.error('Error fetching data:', error);
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });

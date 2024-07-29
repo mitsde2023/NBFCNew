@@ -4,7 +4,7 @@ const ExcelJS = require('exceljs');
 const upload = require('../multerConfig');
 const Propelled = require('../Models/Propelled');
 const IciciBankStatment = require('../Models/IciciBankStatment');
-const FeeFromLoanTracker = require('../Models/FeeFromLoanTracker');
+// const FeeFromLoanTracker = require('../Models/FeeFromLoanTracker');
 const LoanFeeOnlyTranstions = require('../Models/LoanFeeOnlyTranstions');
 const moment = require('moment');
 
@@ -129,6 +129,8 @@ function formatDate(dateString) {
     return dateString ? moment(dateString).format('MM/DD/YYYY') : null;
 }
 
+
+// api to save data from excel file to database
 router.post('/propelled-statement', upload.single('excelFile'), async (req, res) => {
     try {
         const fileBuffer = req.file.buffer;
@@ -211,132 +213,8 @@ router.post('/propelled-statement', upload.single('excelFile'), async (req, res)
     }
 });
 
-
-
-// Updated saveCombinedDataToDatabase function
-async function saveCombinedDataToDatabase(data) {
-    try {
-        for (const item of data) {
-            console.log(item.utrNo, item.tranId, 128);
-
-            // Try to find an existing record based on Bank_tranId (tranId)
-            const existingRecord = await FeeFromLoanTracker.findOne({
-                where: { Bank_tranId: item.tranId }
-            });
-
-            if (existingRecord) {
-                // Update the existing record
-                await FeeFromLoanTracker.update({
-                    date_of_Payment: item.dateOfDisbursement,
-                    mode_of_payment: 'Loan',
-                    MITSDE_Bank_Name: 'ICICI A/C 098505011038',
-                    instrument_No: item.utrNo,
-                    amount: item.depositAmt || null,
-                    clearance_Date: item.transactionDate || null,
-                    student_Name: item.borrowerName,
-                    student_Email_ID: item.emailId,
-                    course_Name: item.courseName,
-                    finance_charges: item.subventionFinanceCharges,
-                    transactionRemarks: item.transactionRemarks || null,
-                }, {
-                    where: { Bank_tranId: item.tranId }
-                });
-
-                console.log('Existing CombinedData instance updated:', item.tranId);
-            } else {
-                // Create a new record if it doesn't exist
-                const [FeeFromLoanTrackerInstance, created] = await FeeFromLoanTracker.findOrCreate({
-                    where: { Bank_tranId: item.tranId },
-                    defaults: {
-                        date_of_Payment: item.dateOfDisbursement,
-                        mode_of_payment: 'Loan',
-                        MITSDE_Bank_Name: 'ICICI A/C 098505011038',
-                        instrument_No: item.utrNo,
-                        amount: item.depositAmt || null,
-                        clearance_Date: item.transactionDate || null,
-                        student_Name: item.borrowerName,
-                        student_Email_ID: item.emailId,
-                        course_Name: item.courseName,
-                        finance_charges: item.subventionFinanceCharges,
-                        Bank_tranId: item.tranId || null,
-                        transactionRemarks: item.transactionRemarks || null,
-                    },
-                });
-
-                if (created) {
-                    console.log('New CombinedData instance created:', item.tranId);
-                } else {
-                    console.log('CombinedData instance already exists:', item.tranId);
-                }
-            }
-        }
-
-        console.log('Data saved to the database.');
-    } catch (error) {
-        console.error('Error saving data to the database:', error);
-        throw error;
-    }
-}
-
-
-
-
-
-router.get('/propelled-combined-data', async (req, res) => {
-    try {
-        // Fetch data from IciciBankStatment
-        const statementResult = await IciciBankStatment.findAll({
-            attributes: [
-                'tranId',
-                'transactionDate',
-                'depositAmt',
-                'transactionRemarks',
-            ]
-        });
-
-        // Fetch data from Propelled
-        const propelledResult = await Propelled.findAll({
-            attributes: [
-                'dateOfDisbursement',
-                'emailId',
-                'borrowerName',
-                'courseName',
-                'subventionFinanceCharges',
-                'utrNo',
-            ]
-        });
-
-        // Extract utr values from Propelled result
-        const utrValues = propelledResult.map(item => item.utrNo);
-
-        // Filter Propelled data based on utr values
-        const filteredPropelledResult = propelledResult.filter(item => utrValues.includes(item.utrNo));
-
-        // Combine IciciBankStatment data with matching Propelled records
-        const data = statementResult.map(statementItem => {
-            const matchingPropelled = filteredPropelledResult.find(propelledItem => {
-                return statementItem.transactionRemarks.includes(propelledItem.utrNo);
-            });
-
-            return {
-                ...statementItem.dataValues,
-                ...matchingPropelled?.dataValues, // Merge Propelled data
-            };
-        });
-
-        // Save combined data to the database
-        await saveCombinedDataToDatabase(data);
-
-        res.json({ data });
-    } catch (error) {
-        console.error('Error fetching combined data:', error);
-        res.status(500).json({ error: 'Internal Server Error' });
-    }
-});
-
-
-
-
+// Any new field required then add into this function
+// function save data to main transation table with utr no 
 async function saveCombinedDataWithICICToDatabase(data) {
     try {
         for (const item of data) {
@@ -359,7 +237,7 @@ async function saveCombinedDataWithICICToDatabase(data) {
                         Bank_tranId: item.matchingStatements[0].tranId || null,
                         transactionRemarks: item.matchingStatements[0].transactionRemarks || null,
                         NbfcName: item.NbfcName || null,
-                        tenure:item.tenureMonths || null
+                        tenure: item.tenureMonths || null
                     },
                 });
 
@@ -380,6 +258,7 @@ async function saveCombinedDataWithICICToDatabase(data) {
 }
 
 
+// api for fibe & excel data merge after marge call this saveCombinedDataWithICICToDatabase to save data
 router.get('/propelled-only-data', async (req, res) => {
     try {
         const result = await Propelled.findAll({
@@ -437,6 +316,124 @@ router.get('/propelled-only-data', async (req, res) => {
 
 
 
+
+
+// Updated saveCombinedDataToDatabase function
+// async function saveCombinedDataToDatabase(data) {
+//     try {
+//         for (const item of data) {
+//             console.log(item.utrNo, item.tranId, 128);
+
+//             // Try to find an existing record based on Bank_tranId (tranId)
+//             const existingRecord = await FeeFromLoanTracker.findOne({
+//                 where: { Bank_tranId: item.tranId }
+//             });
+
+//             if (existingRecord) {
+//                 // Update the existing record
+//                 await FeeFromLoanTracker.update({
+//                     date_of_Payment: item.dateOfDisbursement,
+//                     mode_of_payment: 'Loan',
+//                     MITSDE_Bank_Name: 'ICICI A/C 098505011038',
+//                     instrument_No: item.utrNo,
+//                     amount: item.depositAmt || null,
+//                     clearance_Date: item.transactionDate || null,
+//                     student_Name: item.borrowerName,
+//                     student_Email_ID: item.emailId,
+//                     course_Name: item.courseName,
+//                     finance_charges: item.subventionFinanceCharges,
+//                     transactionRemarks: item.transactionRemarks || null,
+//                 }, {
+//                     where: { Bank_tranId: item.tranId }
+//                 });
+
+//                 console.log('Existing CombinedData instance updated:', item.tranId);
+//             } else {
+//                 // Create a new record if it doesn't exist
+//                 const [FeeFromLoanTrackerInstance, created] = await FeeFromLoanTracker.findOrCreate({
+//                     where: { Bank_tranId: item.tranId },
+//                     defaults: {
+//                         date_of_Payment: item.dateOfDisbursement,
+//                         mode_of_payment: 'Loan',
+//                         MITSDE_Bank_Name: 'ICICI A/C 098505011038',
+//                         instrument_No: item.utrNo,
+//                         amount: item.depositAmt || null,
+//                         clearance_Date: item.transactionDate || null,
+//                         student_Name: item.borrowerName,
+//                         student_Email_ID: item.emailId,
+//                         course_Name: item.courseName,
+//                         finance_charges: item.subventionFinanceCharges,
+//                         Bank_tranId: item.tranId || null,
+//                         transactionRemarks: item.transactionRemarks || null,
+//                     },
+//                 });
+
+//                 if (created) {
+//                     console.log('New CombinedData instance created:', item.tranId);
+//                 } else {
+//                     console.log('CombinedData instance already exists:', item.tranId);
+//                 }
+//             }
+//         }
+
+//         console.log('Data saved to the database.');
+//     } catch (error) {
+//         console.error('Error saving data to the database:', error);
+//         throw error;
+//     }
+// }
+
+// router.get('/propelled-combined-data', async (req, res) => {
+//     try {
+//         // Fetch data from IciciBankStatment
+//         const statementResult = await IciciBankStatment.findAll({
+//             attributes: [
+//                 'tranId',
+//                 'transactionDate',
+//                 'depositAmt',
+//                 'transactionRemarks',
+//             ]
+//         });
+
+//         // Fetch data from Propelled
+//         const propelledResult = await Propelled.findAll({
+//             attributes: [
+//                 'dateOfDisbursement',
+//                 'emailId',
+//                 'borrowerName',
+//                 'courseName',
+//                 'subventionFinanceCharges',
+//                 'utrNo',
+//             ]
+//         });
+
+//         // Extract utr values from Propelled result
+//         const utrValues = propelledResult.map(item => item.utrNo);
+
+//         // Filter Propelled data based on utr values
+//         const filteredPropelledResult = propelledResult.filter(item => utrValues.includes(item.utrNo));
+
+//         // Combine IciciBankStatment data with matching Propelled records
+//         const data = statementResult.map(statementItem => {
+//             const matchingPropelled = filteredPropelledResult.find(propelledItem => {
+//                 return statementItem.transactionRemarks.includes(propelledItem.utrNo);
+//             });
+
+//             return {
+//                 ...statementItem.dataValues,
+//                 ...matchingPropelled?.dataValues, // Merge Propelled data
+//             };
+//         });
+
+//         // Save combined data to the database
+//         await saveCombinedDataToDatabase(data);
+
+//         res.json({ data });
+//     } catch (error) {
+//         console.error('Error fetching combined data:', error);
+//         res.status(500).json({ error: 'Internal Server Error' });
+//     }
+// });
 
 // async function saveCombinedDataToDatabase(data) {
 //     try {

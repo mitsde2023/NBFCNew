@@ -5,7 +5,7 @@ const ExcelJS = require('exceljs');
 const upload = require('../multerConfig');
 const IciciBankStatment = require('../Models/IciciBankStatment');
 
-
+// api to save data from icici statement excel file to database
 router.post('/IciciBank/statement', upload.single('excelFile'), async (req, res) => {
     try {
         const fileBuffer = req.file.buffer;
@@ -56,8 +56,5 @@ router.post('/IciciBank/statement', upload.single('excelFile'), async (req, res)
         res.status(500).json({ error: err.message });
     }
 });
-
-
-
 
 module.exports = router;

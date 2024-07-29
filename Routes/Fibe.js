@@ -7,13 +7,12 @@ const IciciBankStatment = require('../Models/IciciBankStatment');
 const LoanFeeOnlyTranstions = require('../Models/LoanFeeOnlyTranstions');
 const moment = require('moment/moment');
 
-
-
+//function format the date string to 'MM/DD/YYYY'
 function formatDate(dateString) {
-    // Use moment to format the date string to 'MM/DD/YYYY'
     return dateString ? moment(dateString).format('MM/DD/YYYY') : null;
 }
 
+// api to save File excel file statement into data base
 router.post('/Fibe-statement', upload.single('excelFile'), async (req, res) => {
     try {
         const fileBuffer = req.file.buffer;
@@ -103,6 +102,7 @@ router.post('/Fibe-statement', upload.single('excelFile'), async (req, res) => {
     }
 });
 
+//function to save data in databse with combination with icici bank utr no 
 async function saveCombinedDataWithICICToDatabase(data) {
     try {
         for (const item of data) {
@@ -205,9 +205,6 @@ router.get('/Fibe-only-data', async (req, res) => {
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
-
-
-
 
 
 
