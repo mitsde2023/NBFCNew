@@ -294,6 +294,7 @@ router.get('/propelled-only-data', async (req, res) => {
         });
 
         const filteredStatementResults = statementResult.filter(item => {
+            const transactionRemarksMatch = item.transactionRemarks.match(/\/(\d+)\//);
             return transactionRemarksMatch && utrValues.includes(transactionRemarksMatch[1]);
         });
 
@@ -302,7 +303,7 @@ router.get('/propelled-only-data', async (req, res) => {
             const matchingStatements = filteredStatementResult.concat(filteredStatementResults)
                 .filter(statementItem => statementItem.transactionRemarks.includes(propelledItem.utrNo));
             return {
-                propelledItem,
+                ...propelledItem.dataValues,
                 matchingStatements,
             };
         });

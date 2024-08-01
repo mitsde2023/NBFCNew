@@ -49,7 +49,7 @@ function App() {
 
     try {
       // await axios.get("http://localhost:9000/api/greaquest-only-data");
-      await axios.get("http://localhost:9000/api/propelled-only-data");
+      // await axios.get("http://localhost:9000/api/propelled-only-data");
       await axios.get("http://localhost:9000/api/Fibe-only-data");
       setReport(true);
       toast.success("Congratulations! Report Generated Successfully..!");

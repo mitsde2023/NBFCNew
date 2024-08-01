@@ -146,7 +146,7 @@ async function saveCombinedDataWithICICToDatabase(data) {
     }
 }
 
-
+//Api to save marge combaine data of fibe & icici
 router.get('/Fibe-only-data', async (req, res) => {
     try {
         const result = await Fibe.findAll({
@@ -184,6 +184,7 @@ router.get('/Fibe-only-data', async (req, res) => {
         });
 
         const filteredStatementResults = statementResult.filter(item => {
+            const transactionRemarksMatch = item.transactionRemarks.match(/\/(\d+)\//);
             return transactionRemarksMatch && utrValues.includes(transactionRemarksMatch[1]);
         });
 
@@ -192,7 +193,7 @@ router.get('/Fibe-only-data', async (req, res) => {
             const matchingStatements = filteredStatementResult.concat(filteredStatementResults)
                 .filter(statementItem => statementItem.transactionRemarks.includes(FibeItem.UTR));
             return {
-                FibeItem,
+                ...FibeItem.dataValues,
                 matchingStatements,
             };
         });
